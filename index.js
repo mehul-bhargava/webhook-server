@@ -34,14 +34,12 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Webhook endpoint for WooCommerce
+// ✅ Webhook endpoint for WooCommerce
 app.post("/webhook", async (req, res) => {
   try {
     console.log("📥 Webhook Received:");
     console.log(JSON.stringify(req.body, null, 2));
 
-    app.post("/webhook", async (req, res) => {
-  try {
     const order = req.body;
 
     // ✅ Validate order format
@@ -104,23 +102,21 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-
-
-// Button interaction handler (with deferReply)
+// 🔘 Button interaction handler
 bot.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isButton()) return;
 
   const [action, email] = interaction.customId.split("_");
 
-  await interaction.deferReply({ ephemeral: true }); // Defer interaction to avoid timeout
+  await interaction.deferReply({ ephemeral: true });
 
   const message = {
-  from: process.env.EMAIL_USER,
-  to: email,
-  subject: "Your Order Status",
-  text:
-    action === "accept"
-      ? `🎉 Congratulations!
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: "Your Order Status",
+    text:
+      action === "accept"
+        ? `🎉 Congratulations!
 
 Your order has been successfully accepted and is now being processed. You will receive your requested resource within 24 hours.
 
@@ -131,7 +127,7 @@ If we fail to deliver within the timeframe, you may raise a support ticket on ou
 Thank you for choosing ArcMC!
 
 – The ArcMC Team`
-      : `❌ Order Declined
+        : `❌ Order Declined
 
 We regret to inform you that your recent order could not be processed.
 
@@ -147,8 +143,7 @@ For assistance or to try again, please contact our support team.
 We apologize for the inconvenience and appreciate your understanding.
 
 – The ArcMC Team`,
-};
-
+  };
 
   try {
     await transporter.sendMail(message);
@@ -160,6 +155,7 @@ We apologize for the inconvenience and appreciate your understanding.
   }
 });
 
+// 🟢 Start everything
 bot.login(process.env.DISCORD_BOT_TOKEN);
 
 app.listen(3000, () => {
