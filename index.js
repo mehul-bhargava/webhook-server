@@ -42,7 +42,6 @@ app.post("/webhook", async (req, res) => {
 
     const order = req.body;
 
-    // Check for required fields
     if (
       !order ||
       !order.billing ||
@@ -55,6 +54,16 @@ app.post("/webhook", async (req, res) => {
 
     const customerEmail = order.billing.email;
     const productNames = order.line_items.map(item => item.name).join(", ");
+
+    // 🔍 Get Minecraft Username (from billing or meta_data)
+    let mcUsername = order.billing.minecraft_username;
+
+    if (!mcUsername && order.meta_data) {
+      const metaField = order.meta_data.find(
+        meta => meta.key === "minecraft_username"
+      );
+      mcUsername = metaField ? metaField.value : null;
+    }
 
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
     if (!channel) {
@@ -74,10 +83,21 @@ app.post("/webhook", async (req, res) => {
         .setStyle(ButtonStyle.Danger)
     );
 
+    const mcText = mcUsername ? `🎮 **Minecraft Username:** ${mcUsername}\n` : "";
+
     await channel.send({
-      content: `🛒 New order from **${customerEmail}** for: **${productNames}**`,
+      content: `🛒 **New Order Received!**\n📧 **Email:** ${customerEmail}\n📦 **Product(s):** ${productNames}\n${mcText}`,
       components: [row],
     });
+
+    console.log(`📦 Webhook handled for ${customerEmail}`);
+    res.status(200).send("Webhook received");
+  } catch (err) {
+    console.error("❌ Error processing webhook:", err);
+    res.status(500).send("Internal server error");
+  }
+});
+
 
     console.log(`📦 Webhook handled for ${customerEmail}`);
     res.status(200).send("Webhook received");
