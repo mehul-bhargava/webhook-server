@@ -96,14 +96,40 @@ bot.on(Events.InteractionCreate, async interaction => {
   await interaction.deferReply({ ephemeral: true }); // Defer interaction to avoid timeout
 
   const message = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "Your Order Status",
-    text:
-      action === "accept"
-        ? "🎉 Your order has been accepted and will be processed shortly."
-        : "❌ Unfortunately, your order has been declined. Please contact support.",
-  };
+  from: process.env.EMAIL_USER,
+  to: email,
+  subject: "Your Order Status",
+  text:
+    action === "accept"
+      ? `🎉 Congratulations!
+
+Your order has been successfully accepted and is now being processed. You will receive your requested resource within 24 hours.
+
+If we fail to deliver within the timeframe, you may raise a support ticket on our Discord server.
+
+🔗 Join our Discord: https://discord.gg/eXPMuw52hV
+
+Thank you for choosing ArcMC!
+
+– The ArcMC Team`
+      : `❌ Order Declined
+
+We regret to inform you that your recent order could not be processed.
+
+This may have occurred due to one of the following reasons:
+- Invalid payment information
+- Unauthorized or incorrect username
+- Technical issues during checkout
+
+For assistance or to try again, please contact our support team.
+
+🔗 Join our Discord: https://discord.gg/eXPMuw52hV
+
+We apologize for the inconvenience and appreciate your understanding.
+
+– The ArcMC Team`,
+};
+
 
   try {
     await transporter.sendMail(message);
