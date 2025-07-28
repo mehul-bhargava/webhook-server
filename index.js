@@ -57,14 +57,15 @@ app.post("/webhook", async (req, res) => {
     const productNames = order.line_items.map(item => item.name).join(", ");
 
     // 🔍 Extract Minecraft Username (from billing or meta_data)
-    let mcUsername = order.billing.minecraft_username;
+    let mcUsername = order.billing?.minecraft_username;
 
 if (!mcUsername && Array.isArray(order.meta_data)) {
-  const metaField = order.meta_data.find(
-    meta => meta.key === "minecraft_username"
-  );
+  const metaField = order.meta_data.find(meta => meta.key === '_billing_minecraft_username');
   mcUsername = metaField ? metaField.value : null;
 }
+
+const mcText = mcUsername ? `🎮 **Minecraft Username:** ${mcUsername}\n` : '';
+
 
 
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
