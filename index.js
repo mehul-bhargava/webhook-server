@@ -40,8 +40,11 @@ app.post("/webhook", async (req, res) => {
     console.log("📥 Webhook Received:");
     console.log(JSON.stringify(req.body, null, 2));
 
+    app.post("/webhook", async (req, res) => {
+  try {
     const order = req.body;
 
+    // ✅ Validate order format
     if (
       !order ||
       !order.billing ||
@@ -55,10 +58,10 @@ app.post("/webhook", async (req, res) => {
     const customerEmail = order.billing.email;
     const productNames = order.line_items.map(item => item.name).join(", ");
 
-    // 🔍 Get Minecraft Username (from billing or meta_data)
+    // 🔍 Extract Minecraft Username (from billing or meta_data)
     let mcUsername = order.billing.minecraft_username;
 
-    if (!mcUsername && order.meta_data) {
+    if (!mcUsername && Array.isArray(order.meta_data)) {
       const metaField = order.meta_data.find(
         meta => meta.key === "minecraft_username"
       );
@@ -83,7 +86,10 @@ app.post("/webhook", async (req, res) => {
         .setStyle(ButtonStyle.Danger)
     );
 
-    const mcText = mcUsername ? `🎮 **Minecraft Username:** ${mcUsername}\n` : "";
+    // 📝 Message content
+    const mcText = mcUsername
+      ? `🎮 **Minecraft Username:** ${mcUsername}\n`
+      : "";
 
     await channel.send({
       content: `🛒 **New Order Received!**\n📧 **Email:** ${customerEmail}\n📦 **Product(s):** ${productNames}\n${mcText}`,
@@ -97,6 +103,7 @@ app.post("/webhook", async (req, res) => {
     res.status(500).send("Internal server error");
   }
 });
+
 
 
 // Button interaction handler (with deferReply)
