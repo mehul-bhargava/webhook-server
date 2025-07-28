@@ -99,14 +99,6 @@ app.post("/webhook", async (req, res) => {
 });
 
 
-    console.log(`📦 Webhook handled for ${customerEmail}`);
-    res.status(200).send("Webhook received");
-  } catch (err) {
-    console.error("❌ Error processing webhook:", err);
-    res.status(500).send("Internal server error");
-  }
-});
-
 // Button interaction handler (with deferReply)
 bot.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isButton()) return;
