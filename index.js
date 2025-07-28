@@ -1,4 +1,5 @@
 // File: index.js
+
 require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
@@ -16,14 +17,14 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Discord bot setup
+// 🛠️ Discord Bot Setup
 const bot = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 bot.once(Events.ClientReady, () => {
   console.log(`✅ Logged in as ${bot.user.tag}`);
 });
 
-// Email transporter setup
+// 📧 Nodemailer Setup
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
@@ -34,7 +35,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// ✅ Webhook endpoint for WooCommerce
+// 🌐 Webhook Endpoint
 app.post("/webhook", async (req, res) => {
   try {
     console.log("📥 Webhook Received:");
@@ -42,7 +43,7 @@ app.post("/webhook", async (req, res) => {
 
     const order = req.body;
 
-    // ✅ Validate order format
+    // 🔍 Basic Order Validation
     if (
       !order ||
       !order.billing ||
@@ -56,24 +57,28 @@ app.post("/webhook", async (req, res) => {
     const customerEmail = order.billing.email;
     const productNames = order.line_items.map(item => item.name).join(", ");
 
-    // 🔍 Extract Minecraft Username (from billing or meta_data)
+    // 🔍 Extract Minecraft Username
     let mcUsername = order.billing?.minecraft_username;
 
-if (!mcUsername && Array.isArray(order.meta_data)) {
-  const metaField = order.meta_data.find(meta => meta.key === '_billing_minecraft_username');
-  mcUsername = metaField ? metaField.value : null;
-}
+    if (!mcUsername && Array.isArray(order.meta_data)) {
+      const metaField = order.meta_data.find(
+        meta => meta.key === '_billing_minecraft_username'
+      );
+      mcUsername = metaField ? metaField.value : null;
+    }
 
-const mcText = mcUsername ? `🎮 **Minecraft Username:** ${mcUsername}\n` : '';
+    const mcText = mcUsername
+      ? `🎮 **Minecraft Username:** ${mcUsername}\n`
+      : '';
 
-
-
+    // 📡 Fetch Discord Channel
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
     if (!channel) {
       console.error("❌ Discord channel not found");
       return res.status(500).send("Discord channel not found");
     }
 
+    // 🎛️ Buttons for Approval
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`accept_${customerEmail}`)
@@ -86,10 +91,7 @@ const mcText = mcUsername ? `🎮 **Minecraft Username:** ${mcUsername}\n` : '';
         .setStyle(ButtonStyle.Danger)
     );
 
-    // 📝 Message content
-    const mcText = mcUsername ? `🎮 **Minecraft Username:** ${mcUsername}\n` : "";
-
-
+    // 📨 Send Message to Discord
     await channel.send({
       content: `🛒 **New Order Received!**\n📧 **Email:** ${customerEmail}\n📦 **Product(s):** ${productNames}\n${mcText}`,
       components: [row],
@@ -103,12 +105,11 @@ const mcText = mcUsername ? `🎮 **Minecraft Username:** ${mcUsername}\n` : '';
   }
 });
 
-// 🔘 Button interaction handler
+// 🔘 Handle Button Interactions
 bot.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isButton()) return;
 
   const [action, email] = interaction.customId.split("_");
-
   await interaction.deferReply({ ephemeral: true });
 
   const message = {
@@ -156,9 +157,8 @@ We apologize for the inconvenience and appreciate your understanding.
   }
 });
 
-// 🟢 Start everything
+// 🟢 Start Server & Bot
 bot.login(process.env.DISCORD_BOT_TOKEN);
-
 app.listen(3000, () => {
   console.log("🚀 Server running on http://localhost:3000");
 });
