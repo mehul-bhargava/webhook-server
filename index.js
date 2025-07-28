@@ -59,12 +59,13 @@ app.post("/webhook", async (req, res) => {
     // 🔍 Extract Minecraft Username (from billing or meta_data)
     let mcUsername = order.billing.minecraft_username;
 
-    if (!mcUsername && Array.isArray(order.meta_data)) {
-      const metaField = order.meta_data.find(
-        meta => meta.key === "minecraft_username"
-      );
-      mcUsername = metaField ? metaField.value : null;
-    }
+if (!mcUsername && Array.isArray(order.meta_data)) {
+  const metaField = order.meta_data.find(
+    meta => meta.key === "minecraft_username"
+  );
+  mcUsername = metaField ? metaField.value : null;
+}
+
 
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
     if (!channel) {
@@ -85,9 +86,8 @@ app.post("/webhook", async (req, res) => {
     );
 
     // 📝 Message content
-    const mcText = mcUsername
-      ? `🎮 **Minecraft Username:** ${mcUsername}\n`
-      : "";
+    const mcText = mcUsername ? `🎮 **Minecraft Username:** ${mcUsername}\n` : "";
+
 
     await channel.send({
       content: `🛒 **New Order Received!**\n📧 **Email:** ${customerEmail}\n📦 **Product(s):** ${productNames}\n${mcText}`,
