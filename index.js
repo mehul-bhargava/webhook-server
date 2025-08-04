@@ -1,6 +1,3 @@
-// File: index.js
-
-require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const {
@@ -33,19 +30,6 @@ requiredEnvVars.forEach((key) => {
   }
 });
 
-// 🔒 Middleware for webhook security
-const verifyWebhookSecret = (req, res, next) => {
-  const providedSecret = req.headers['x-webhook-secret'] || req.query.secret;
-  const expectedSecret = process.env.WEBHOOK_SECRET;
-  
-  if (expectedSecret && providedSecret !== expectedSecret) {
-    console.error("❌ Unauthorized webhook attempt");
-    return res.status(401).send("Unauthorized");
-  }
-  
-  next();
-};
-
 // 🛠️ Discord Bot Setup
 const bot = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -65,7 +49,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // 🌐 Webhook Endpoint
-app.post("/webhook", verifyWebhookSecret, async (req, res) => {
+app.post("/webhook", async (req, res) => {
   try {
     console.log("📥 Webhook Received:");
     console.log(JSON.stringify(req.body, null, 2));
@@ -162,7 +146,7 @@ app.get("/health", (req, res) => {
 });
 
 // 🧪 Test Webhook
-app.post("/test-webhook", verifyWebhookSecret, async (req, res) => {
+app.post("/test-webhook", async (req, res) => {
   try {
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
     if (!channel) {
