@@ -9,7 +9,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  Events
+  Events,
 } = require("discord.js");
 const nodemailer = require("nodemailer");
 
@@ -55,21 +55,21 @@ app.post("/webhook", async (req, res) => {
     }
 
     const customerEmail = order.billing.email;
-    const productNames = order.line_items.map(item => item.name).join(", ");
+    const productNames = order.line_items.map((item) => item.name).join(", ");
 
     // 🔍 Extract Minecraft Username
     let mcUsername = order.billing?.minecraft_username;
 
     if (!mcUsername && Array.isArray(order.meta_data)) {
       const metaField = order.meta_data.find(
-        meta => meta.key === '_billing_minecraft_username'
+        (meta) => meta.key === "_billing_minecraft_username"
       );
       mcUsername = metaField ? metaField.value : null;
     }
 
     const mcText = mcUsername
       ? `🎮 **Minecraft Username:** ${mcUsername}\n`
-      : '';
+      : "";
 
     // 📡 Fetch Discord Channel
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
@@ -84,7 +84,6 @@ app.post("/webhook", async (req, res) => {
         .setCustomId(`accept_${customerEmail}`)
         .setLabel("✅ Accept")
         .setStyle(ButtonStyle.Success),
-
       new ButtonBuilder()
         .setCustomId(`decline_${customerEmail}`)
         .setLabel("❌ Decline")
@@ -106,7 +105,7 @@ app.post("/webhook", async (req, res) => {
 });
 
 // 🔘 Handle Button Interactions
-bot.on(Events.InteractionCreate, async interaction => {
+bot.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
   const [action, email] = interaction.customId.split("_");
@@ -158,7 +157,10 @@ We apologize for the inconvenience and appreciate your understanding.
 });
 
 // 🟢 Start Server & Bot
+const PORT = process.env.PORT || 3000;
+console.log("DISCORD TOKEN START:", process.env.DISCORD_BOT_TOKEN?.slice(0, 8)); // Debug log
+
 bot.login(process.env.DISCORD_BOT_TOKEN);
-app.listen(3000, () => {
-  console.log("🚀 Server running on http://localhost:3000");
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
