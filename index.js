@@ -17,6 +17,19 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// 🔒 Middleware for webhook security
+const verifyWebhookSecret = (req, res, next) => {
+  const providedSecret = req.headers['x-webhook-secret'] || req.query.secret;
+  const expectedSecret = process.env.WEBHOOK_SECRET;
+  
+  if (expectedSecret && providedSecret !== expectedSecret) {
+    console.error("❌ Unauthorized webhook attempt");
+    return res.status(401).send("Unauthorized");
+  }
+  
+  next();
+};
+
 // 🛠️ Discord Bot Setup
 const bot = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -36,35 +49,64 @@ const transporter = nodemailer.createTransport({
 });
 
 // 🌐 Webhook Endpoint
-app.post("/webhook", async (req, res) => {
+app.post("/webhook", verifyWebhookSecret, async (req, res) => {
   try {
     console.log("📥 Webhook Received:");
     console.log(JSON.stringify(req.body, null, 2));
 
     const order = req.body;
 
-    // 🔍 Basic Order Validation
-    if (
-      !order ||
-      !order.billing ||
-      !order.billing.email ||
-      !Array.isArray(order.line_items)
-    ) {
+    // 🔍 Enhanced Order Validation for WordPress/WooCommerce
+    if (!order) {
+      console.error("❌ No order data received");
+      return res.status(400).send("No order data received.");
+    }
+
+    // Handle different WordPress webhook formats
+    let customerEmail, productNames, orderId, orderStatus, orderTotal;
+    
+    // WooCommerce format
+    if (order.billing && order.line_items) {
+      customerEmail = order.billing.email;
+      productNames = order.line_items.map((item) => item.name).join(", ");
+      orderId = order.id || order.number;
+      orderStatus = order.status;
+      orderTotal = order.total;
+    }
+    // Custom WordPress format
+    else if (order.customer_email || order.email) {
+      customerEmail = order.customer_email || order.email;
+      productNames = order.products || order.items || "Unknown Product";
+      orderId = order.order_id || order.id;
+      orderStatus = order.status || "pending";
+      orderTotal = order.total || order.amount;
+    }
+    // Fallback validation
+    else {
       console.error("❌ Invalid order format received:", order);
       return res.status(400).send("Invalid order format.");
     }
 
-    const customerEmail = order.billing.email;
-    const productNames = order.line_items.map((item) => item.name).join(", ");
+    if (!customerEmail) {
+      console.error("❌ No customer email found in order");
+      return res.status(400).send("Customer email is required.");
+    }
 
     // 🔍 Extract Minecraft Username
-    let mcUsername = order.billing?.minecraft_username;
+    let mcUsername = order.billing?.minecraft_username || order.minecraft_username;
 
     if (!mcUsername && Array.isArray(order.meta_data)) {
       const metaField = order.meta_data.find(
         (meta) => meta.key === "_billing_minecraft_username"
       );
       mcUsername = metaField ? metaField.value : null;
+    }
+    
+    // Check custom fields for Minecraft username
+    if (!mcUsername && order.custom_fields) {
+      mcUsername = order.custom_fields.minecraft_username || 
+                   order.custom_fields.mc_username ||
+                   order.custom_fields.username;
     }
 
     const mcText = mcUsername
@@ -92,7 +134,14 @@ app.post("/webhook", async (req, res) => {
 
     // 📨 Send Message to Discord
     await channel.send({
-      content: `🛒 **New Order Received!**\n📧 **Email:** ${customerEmail}\n📦 **Product(s):** ${productNames}\n${mcText}`,
+      content: `🛒 **New Order Received!**\n` +
+               `📧 **Email:** ${customerEmail}\n` +
+               `📦 **Product(s):** ${productNames}\n` +
+               `🆔 **Order ID:** ${orderId}\n` +
+               `📊 **Status:** ${orderStatus}\n` +
+               `💰 **Total:** $${orderTotal}\n` +
+               `${mcText}` +
+               `⏰ **Time:** ${new Date().toLocaleString()}`,
       components: [row],
     });
 
@@ -101,6 +150,39 @@ app.post("/webhook", async (req, res) => {
   } catch (err) {
     console.error("❌ Error processing webhook:", err);
     res.status(500).send("Internal server error");
+  }
+});
+
+// 🔍 Health Check Endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    bot_status: bot.isReady() ? "connected" : "disconnected"
+  });
+});
+
+// 📋 Test Webhook Endpoint
+app.post("/test-webhook", verifyWebhookSecret, async (req, res) => {
+  try {
+    const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
+    if (!channel) {
+      return res.status(500).send("Discord channel not found");
+    }
+
+    await channel.send({
+      content: `🧪 **Test Webhook Successful!**\n` +
+               `✅ Bot is connected and working\n` +
+               `⏰ **Time:** ${new Date().toLocaleString()}`
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Test webhook sent to Discord successfully"
+    });
+  } catch (error) {
+    console.error("❌ Test webhook failed:", error);
+    res.status(500).send("Test webhook failed");
   }
 });
 
