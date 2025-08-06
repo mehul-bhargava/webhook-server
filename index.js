@@ -191,9 +191,9 @@ bot.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-// 🚀 Start Server & Bot
 const PORT = process.env.PORT || 3000;
-bot.login(process.env.DISCORD_BOT_TOKEN);
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
+
