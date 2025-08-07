@@ -14,7 +14,6 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// ✅ Check essential environment variables
 const requiredEnvVars = [
   "DISCORD_BOT_TOKEN",
   "DISCORD_CHANNEL_ID",
@@ -30,14 +29,12 @@ requiredEnvVars.forEach((key) => {
   }
 });
 
-// 🛠️ Discord Bot Setup
 const bot = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 bot.once(Events.ClientReady, () => {
   console.log(`✅ Logged in as ${bot.user.tag}`);
 });
 
-// 📧 Nodemailer Setup
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
@@ -48,19 +45,17 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// 🌐 Webhook Endpoint
 app.post("/webhook", async (req, res) => {
   try {
     console.log("📥 Webhook Received:");
     console.log(JSON.stringify(req.body, null, 2));
 
     const order = req.body;
-
     let customerEmail, productNames, orderId, orderStatus, orderTotal;
-    
+
     if (order.billing && order.line_items) {
       customerEmail = order.billing.email;
-      productNames = order.line_items.map((item) => item.name).join(", ");
+      productNames = order.line_items.map(item => item.name).join(", ");
       orderId = order.id || order.number;
       orderStatus = order.status;
       orderTotal = order.total;
@@ -83,9 +78,7 @@ app.post("/webhook", async (req, res) => {
     let mcUsername = order.billing?.minecraft_username || order.minecraft_username;
 
     if (!mcUsername && Array.isArray(order.meta_data)) {
-      const metaField = order.meta_data.find(
-        (meta) => meta.key === "_billing_minecraft_username"
-      );
+      const metaField = order.meta_data.find(meta => meta.key === "_billing_minecraft_username");
       mcUsername = metaField ? metaField.value : null;
     }
 
@@ -95,9 +88,7 @@ app.post("/webhook", async (req, res) => {
                    order.custom_fields.username;
     }
 
-    const mcText = mcUsername
-      ? `🎮 **Minecraft Username:** ${mcUsername}\n`
-      : "";
+    const mcText = mcUsername ? `🎮 **Minecraft Username:** ${mcUsername}\n` : "";
 
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
     if (!channel) {
@@ -117,14 +108,15 @@ app.post("/webhook", async (req, res) => {
     );
 
     await channel.send({
-      content: `🛒 **New Order Received!**\n` +
-               `📧 **Email:** ${customerEmail}\n` +
-               `📦 **Product(s):** ${productNames}\n` +
-               `🆔 **Order ID:** ${orderId}\n` +
-               `📊 **Status:** ${orderStatus}\n` +
-               `💰 **Total:** $${orderTotal}\n` +
-               `${mcText}` +
-               `⏰ **Time:** ${new Date().toLocaleString()}`,
+      content:
+        `🛒 **New Order Received!**\n` +
+        `📧 **Email:** ${customerEmail}\n` +
+        `📦 **Product(s):** ${productNames}\n` +
+        `🆔 **Order ID:** ${orderId}\n` +
+        `📊 **Status:** ${orderStatus}\n` +
+        `💰 **Total:** $${orderTotal}\n` +
+        `${mcText}` +
+        `⏰ **Time:** ${new Date().toLocaleString()}`,
       components: [row],
     });
 
@@ -136,7 +128,6 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-// 🩺 Health Check Endpoint
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "healthy",
@@ -145,7 +136,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-// 🧪 Test Webhook
 app.post("/test-webhook", async (req, res) => {
   try {
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
@@ -164,7 +154,6 @@ app.post("/test-webhook", async (req, res) => {
   }
 });
 
-// 🎯 Button Interactions (Accept/Decline)
 bot.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
@@ -192,8 +181,6 @@ bot.on(Events.InteractionCreate, async (interaction) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
-
