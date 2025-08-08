@@ -187,10 +187,8 @@ bot.on(Events.InteractionCreate, async (interaction) => {
   };
 
   try {
-    // Send the email
     await transporter.sendMail(message);
 
-    // Disable the buttons
     const oldMessage = interaction.message;
     const disabledRow = new ActionRowBuilder().addComponents(
       oldMessage.components[0].components.map(button =>
@@ -198,12 +196,10 @@ bot.on(Events.InteractionCreate, async (interaction) => {
       )
     );
 
-    // Edit the original message with disabled buttons
     await oldMessage.edit({
       components: [disabledRow]
     });
 
-    // Respond to the button click
     await interaction.editReply({
       content: `📩 Email sent to \`${email}\` and buttons disabled.`
     });
@@ -217,7 +213,6 @@ bot.on(Events.InteractionCreate, async (interaction) => {
     });
   }
 });
-
 
 // Start the server
 const PORT = process.env.PORT || 3000;
