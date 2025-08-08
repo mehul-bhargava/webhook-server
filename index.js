@@ -7,7 +7,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
   Events,
-  EmbedBuilder, // ✅ Added here
+  EmbedBuilder,
 } = require("discord.js");
 const nodemailer = require("nodemailer");
 const axios = require("axios");
@@ -94,21 +94,19 @@ app.post('/webhook', async (req, res) => {
 
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
 
-    // Create the embed
     const embed = new EmbedBuilder()
       .setColor(0xff4b4b)
       .setTitle("🛍️ Order Updated")
       .addFields(
-        { name: "Order ID", value: `\`${orderId}\``, inline: true },
-        { name: "Minecraft Username", value: `\`${minecraftUsername}\``, inline: true },
-        { name: "Amount", value: `\`$${orderTotal}\``, inline: true },
+        { name: "Order ID", value: `\`${orderId}\`", inline: true },
+        { name: "Minecraft Username", value: `\`${minecraftUsername}\`", inline: true },
+        { name: "Amount", value: `\`$${orderTotal}\`", inline: true },
         { name: "Products", value: `${productNames}`, inline: false },
-        { name: "Status", value: `\`${orderStatus}\``, inline: true },
+        { name: "Status", value: `\`${orderStatus}\`", inline: true },
         { name: "Payment Method", value: `${paymentMethod}`, inline: true }
       )
       .setFooter({ text: `Order Management System • ${new Date().toLocaleString()}` });
 
-    // Create the buttons
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`accept_${orderId}_${customerEmail}`)
@@ -120,7 +118,6 @@ app.post('/webhook', async (req, res) => {
         .setStyle(ButtonStyle.Danger)
     );
 
-    // Send message to Discord
     await channel.send({
       embeds: [embed],
       components: [row]
@@ -135,7 +132,7 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
-// Render ping-friendly root route
+// Root route
 app.get("/", (req, res) => {
   res.status(200).send("✅ Webhook server is up and running.");
 });
@@ -149,13 +146,11 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Manual webhook test
+// Manual test webhook
 app.post("/test-webhook", async (req, res) => {
   try {
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
-    if (!channel) {
-      return res.status(500).send("Discord channel not found");
-    }
+    if (!channel) return res.status(500).send("Discord channel not found");
 
     await channel.send({
       content: `🧪 **Test Webhook Successful!**\n✅ Bot is connected\n⏰ ${new Date().toLocaleString()}`
@@ -168,11 +163,11 @@ app.post("/test-webhook", async (req, res) => {
   }
 });
 
-// Button interaction
+// Button interaction with button removal
 bot.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
-  const [action, email] = interaction.customId.split("_");
+  const [action, orderId, email] = interaction.customId.split("_");
   await interaction.deferReply({ ephemeral: true });
 
   const message = {
@@ -190,7 +185,7 @@ bot.on(Events.InteractionCreate, async (interaction) => {
     await interaction.editReply({ content: `📩 Email sent to ${email}` });
     console.log(`📧 Email sent to ${email} for ${action}`);
 
-    // 🧼 Remove the buttons from the original message
+    // 🧼 Remove buttons
     await interaction.message.edit({ components: [] });
 
   } catch (error) {
@@ -199,12 +194,11 @@ bot.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-
-// Start the server
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Express server running at http://localhost:${PORT}`);
 });
 
-// Login the bot
+// Login bot
 bot.login(process.env.DISCORD_BOT_TOKEN);
