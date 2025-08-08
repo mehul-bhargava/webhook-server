@@ -81,41 +81,39 @@ app.post('/webhook', async (req, res) => {
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`accept_${orderId}`)
+      .setCustomId(`accept_${customerEmail}`)
       .setLabel('Accept')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId(`decline_${orderId}`)
+      .setCustomId(`decline_${customerEmail}`)
       .setLabel('Decline')
       .setStyle(ButtonStyle.Danger)
   );
 
   try {
+    const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
+    if (!channel) {
+      console.error("❌ Discord channel not found");
+      return res.status(500).send("Discord channel not found");
+    }
+
     await channel.send({
       content: `🛒 **New Order Received!**\n` +
                `📧 **Email:** ${customerEmail}\n` +
                `👤 **Minecraft Username:** \`${minecraftUsername}\`\n` +
                `📦 **Product(s):** ${productNames}\n` +
-               `🆔 **Order ID:** ${orderId}\n` +
+               `🏢 **Order ID:** ${orderId}\n` +
                `📊 **Status:** ${orderStatus}\n` +
                `💰 **Total:** $${orderTotal}\n` +
                `⏰ **Time:** ${new Date().toLocaleString()}`,
       components: [row],
     });
 
-    res.status(200).send("Order processed");
-  } catch (err) {
-    console.error("❌ Error sending to Discord:", err);
-    res.status(500).send("Internal error");
-  }
-});
-
-
     console.log(`📦 Webhook handled for ${customerEmail}`);
     res.status(200).send("Webhook received");
   } catch (err) {
-    console.error("❌ Error processing webhook:", err);
-    res.status(500).send("Internal server error");
+    console.error("❌ Error sending to Discord:", err);
+    res.status(500).send("Internal error");
   }
 });
 
