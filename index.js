@@ -49,79 +49,67 @@ const transporter = nodemailer.createTransport({
 });
 
 // Webhook handler
-app.post("/webhook", async (req, res) => {
-  try {
-    console.log("📥 Webhook Received:");
-    console.log(JSON.stringify(req.body, null, 2));
+app.post('/webhook', async (req, res) => {
+  const data = req.body;
 
-    const order = req.body;
-    let customerEmail, productNames, orderId, orderStatus, orderTotal;
+  if (!data || !data.id || !data.billing || !data.line_items) {
+    console.log("❌ Invalid order format received:", data);
+    return res.status(400).send("Invalid order format");
+  }
 
-    if (order.billing && order.line_items) {
-      customerEmail = order.billing.email;
-      productNames = order.line_items.map(item => item.name).join(", ");
-      orderId = order.id || order.number;
-      orderStatus = order.status;
-      orderTotal = order.total;
-    } else if (order.customer_email || order.email) {
-      customerEmail = order.customer_email || order.email;
-      productNames = order.products || order.items || "Unknown Product";
-      orderId = order.order_id || order.id;
-      orderStatus = order.status || "pending";
-      orderTotal = order.total || order.amount;
-    } else {
-      console.error("❌ Invalid order format received:", order);
-      return res.status(400).send("Invalid order format.");
-    }
+  const orderId = data.id;
+  const customerEmail = data.billing.email;
+  const orderTotal = data.total;
+  const orderStatus = data.status;
+  const productNames = data.line_items.map(item => item.name).join(', ');
 
-    if (!customerEmail) {
-      console.error("❌ No customer email found in order");
-      return res.status(400).send("Customer email is required.");
-    }
-
-    // Extract Minecraft username
-    let mcUsername = order.billing?.minecraft_username || order.minecraft_username;
-    if (!mcUsername && Array.isArray(order.meta_data)) {
-      const metaField = order.meta_data.find(meta => meta.key === "_billing_minecraft_username");
-      mcUsername = metaField ? metaField.value : null;
-    }
-    if (!mcUsername && order.custom_fields) {
-      mcUsername = order.custom_fields.minecraft_username ||
-                   order.custom_fields.mc_username ||
-                   order.custom_fields.username;
-    }
-
-    const mcText = mcUsername ? `🎮 **Minecraft Username:** ${mcUsername}\n` : "";
-
-    const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
-    if (!channel || !channel.isTextBased?.()) {
-      console.error("❌ Discord channel not found or not text-based");
-      return res.status(500).send("Discord channel not found");
-    }
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`accept_${customerEmail}`)
-        .setLabel("✅ Accept")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`decline_${customerEmail}`)
-        .setLabel("❌ Decline")
-        .setStyle(ButtonStyle.Danger)
+  // 🔍 Try to find Minecraft username in meta_data
+  let minecraftUsername = null;
+  if (Array.isArray(data.meta_data)) {
+    const mcMeta = data.meta_data.find(meta => 
+      meta.key.toLowerCase().includes('minecraft')
     );
+    if (mcMeta) {
+      minecraftUsername = mcMeta.value;
+    }
+  }
 
+  // Fallback: use first name if no meta field found
+  if (!minecraftUsername) {
+    minecraftUsername = data.billing.first_name || "Unknown";
+  }
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`accept_${orderId}`)
+      .setLabel('Accept')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`decline_${orderId}`)
+      .setLabel('Decline')
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  try {
     await channel.send({
-      content:
-        `🛒 **New Order Received!**\n` +
-        `📧 **Email:** ${customerEmail}\n` +
-        `📦 **Product(s):** ${productNames}\n` +
-        `🆔 **Order ID:** ${orderId}\n` +
-        `📊 **Status:** ${orderStatus}\n` +
-        `💰 **Total:** $${orderTotal}\n` +
-        `${mcText}` +
-        `⏰ **Time:** ${new Date().toLocaleString()}`,
+      content: `🛒 **New Order Received!**\n` +
+               `📧 **Email:** ${customerEmail}\n` +
+               `👤 **Minecraft Username:** \`${minecraftUsername}\`\n` +
+               `📦 **Product(s):** ${productNames}\n` +
+               `🆔 **Order ID:** ${orderId}\n` +
+               `📊 **Status:** ${orderStatus}\n` +
+               `💰 **Total:** $${orderTotal}\n` +
+               `⏰ **Time:** ${new Date().toLocaleString()}`,
       components: [row],
     });
+
+    res.status(200).send("Order processed");
+  } catch (err) {
+    console.error("❌ Error sending to Discord:", err);
+    res.status(500).send("Internal error");
+  }
+});
+
 
     console.log(`📦 Webhook handled for ${customerEmail}`);
     res.status(200).send("Webhook received");
