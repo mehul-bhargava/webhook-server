@@ -52,32 +52,44 @@ const transporter = nodemailer.createTransport({
 
 // ✅ Webhook Endpoint
 app.post('/webhook', async (req, res) => {
-  const orderId = req.body.id;
+  let data;
 
-  if (!orderId) {
-    console.log("❌ Invalid webhook payload:", req.body);
-    return res.status(400).send("Missing order ID");
+  // If orderId is present, fetch from WooCommerce
+  if (req.body.id && typeof req.body.id === "number") {
+    const orderId = req.body.id;
+
+    try {
+      const response = await axios.get(
+        `${process.env.WC_API_URL}/orders/${orderId}`,
+        {
+          auth: {
+            username: process.env.WC_CONSUMER_KEY,
+            password: process.env.WC_CONSUMER_SECRET
+          }
+        }
+      );
+      data = response.data;
+    } catch (error) {
+      console.error("❌ Failed to fetch from WooCommerce:", error.response?.data || error.message);
+      return res.status(500).send("Error fetching order from WooCommerce");
+    }
+  } else {
+    // Use full order object directly from test (e.g., Postman)
+    data = req.body;
+    console.log("🧪 Using test mode with provided order body");
   }
 
   try {
-    const response = await axios.get(
-      `${process.env.WC_API_URL}/orders/${orderId}`,
-      {
-        auth: {
-          username: process.env.WC_CONSUMER_KEY,
-          password: process.env.WC_CONSUMER_SECRET
-        }
-      }
-    );
-
-    const data = response.data;
-    const customerEmail = data.billing.email;
-    const orderTotal = data.total;
-    const orderStatus = data.status.toUpperCase();
-    const productNames = data.line_items.map(item => item.name).join(', ');
+    const orderId = data.id || "TestOrder";
+    const customerEmail = data.billing?.email || "unknown@example.com";
+    const orderTotal = data.total || "0.00";
+    const orderStatus = (data.status || "pending").toUpperCase();
+    const productNames = (data.line_items || [])
+      .map(item => item.name)
+      .join(', ') || "No products";
     const paymentMethod = data.payment_method_title || "N/A";
 
-    let minecraftUsername = null;
+    let minecraftUsername = "Unknown";
     if (Array.isArray(data.meta_data)) {
       const mcMeta = data.meta_data.find(meta =>
         meta.key.toLowerCase().includes('minecraft')
@@ -86,16 +98,15 @@ app.post('/webhook', async (req, res) => {
         minecraftUsername = mcMeta.value;
       }
     }
-
-    if (!minecraftUsername) {
-      minecraftUsername = data.billing.first_name || "Unknown";
+    if (!minecraftUsername && data.billing?.first_name) {
+      minecraftUsername = data.billing.first_name;
     }
 
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
 
     const embed = new EmbedBuilder()
       .setColor(0xff4b4b)
-      .setTitle("🛍️ Order Updated")
+      .setTitle("🛍️ Order Received")
       .addFields(
         { name: "Order ID", value: `\`${orderId}\``, inline: true },
         { name: "Minecraft Username", value: `\`${minecraftUsername}\``, inline: true },
@@ -124,12 +135,12 @@ app.post('/webhook', async (req, res) => {
 
     console.log("✅ Order sent to Discord:", orderId);
     res.status(200).send("Order processed");
-
   } catch (error) {
-    console.error("❌ Failed to fetch or send order:", error.response?.data || error.message);
+    console.error("❌ Failed to send order:", error.message);
     res.status(500).send("Error processing order");
   }
 });
+
 
 // ✅ Root & Health Endpoints
 app.get("/", (req, res) => {
