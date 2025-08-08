@@ -16,7 +16,7 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Validate required environment variables
+// ✅ Environment Variable Validation
 const requiredEnvVars = [
   "DISCORD_BOT_TOKEN",
   "DISCORD_CHANNEL_ID",
@@ -32,14 +32,14 @@ requiredEnvVars.forEach((key) => {
   }
 });
 
-// Initialize Discord bot
+// ✅ Discord Bot Init
 const bot = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 bot.once(Events.ClientReady, () => {
   console.log(`✅ Bot connected as ${bot.user.tag}`);
 });
 
-// Email transport config
+// ✅ Email Transporter
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
@@ -50,7 +50,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Webhook handler
+// ✅ Webhook Endpoint
 app.post('/webhook', async (req, res) => {
   const orderId = req.body.id;
 
@@ -71,7 +71,6 @@ app.post('/webhook', async (req, res) => {
     );
 
     const data = response.data;
-
     const customerEmail = data.billing.email;
     const orderTotal = data.total;
     const orderStatus = data.status.toUpperCase();
@@ -98,11 +97,11 @@ app.post('/webhook', async (req, res) => {
       .setColor(0xff4b4b)
       .setTitle("🛍️ Order Updated")
       .addFields(
-        { name: "Order ID", value: `\`${orderId}\`", inline: true },
-        { name: "Minecraft Username", value: `\`${minecraftUsername}\`", inline: true },
-        { name: "Amount", value: `\`$${orderTotal}\`", inline: true },
+        { name: "Order ID", value: `\`${orderId}\``, inline: true },
+        { name: "Minecraft Username", value: `\`${minecraftUsername}\``, inline: true },
+        { name: "Amount", value: `\`$${orderTotal}\``, inline: true },
         { name: "Products", value: `${productNames}`, inline: false },
-        { name: "Status", value: `\`${orderStatus}\`", inline: true },
+        { name: "Status", value: `\`${orderStatus}\``, inline: true },
         { name: "Payment Method", value: `${paymentMethod}`, inline: true }
       )
       .setFooter({ text: `Order Management System • ${new Date().toLocaleString()}` });
@@ -132,12 +131,11 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
-// Root route
+// ✅ Root & Health Endpoints
 app.get("/", (req, res) => {
   res.status(200).send("✅ Webhook server is up and running.");
 });
 
-// Health check
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "healthy",
@@ -146,7 +144,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Manual test webhook
+// ✅ Test Webhook Endpoint
 app.post("/test-webhook", async (req, res) => {
   try {
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
@@ -163,7 +161,7 @@ app.post("/test-webhook", async (req, res) => {
   }
 });
 
-// Button interaction with button removal
+// ✅ Handle Button Interaction & Remove Buttons After Click
 bot.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
@@ -185,7 +183,7 @@ bot.on(Events.InteractionCreate, async (interaction) => {
     await interaction.editReply({ content: `📩 Email sent to ${email}` });
     console.log(`📧 Email sent to ${email} for ${action}`);
 
-    // 🧼 Remove buttons
+    // 🧼 Remove Buttons after interaction
     await interaction.message.edit({ components: [] });
 
   } catch (error) {
@@ -194,11 +192,11 @@ bot.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-// Start server
+// ✅ Start Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Express server running at http://localhost:${PORT}`);
 });
 
-// Login bot
+// ✅ Login Discord Bot
 bot.login(process.env.DISCORD_BOT_TOKEN);
