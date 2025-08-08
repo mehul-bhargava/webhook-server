@@ -16,7 +16,6 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// ✅ Environment Variable Validation
 const requiredEnvVars = [
   "DISCORD_BOT_TOKEN",
   "DISCORD_CHANNEL_ID",
@@ -32,14 +31,12 @@ requiredEnvVars.forEach((key) => {
   }
 });
 
-// ✅ Discord Bot Init
 const bot = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 bot.once(Events.ClientReady, () => {
   console.log(`✅ Bot connected as ${bot.user.tag}`);
 });
 
-// ✅ Email Transporter
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
@@ -50,12 +47,9 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// ✅ Webhook Endpoint
 app.post('/webhook', async (req, res) => {
   let data = req.body;
   const orderId = data.id;
-
-  // If this is a test/mock order with full data, skip API fetch
   const isTestOrder = data.billing && data.line_items;
 
   if (!orderId) {
@@ -64,7 +58,6 @@ app.post('/webhook', async (req, res) => {
   }
 
   try {
-    // If not test order, fetch from WooCommerce
     if (!isTestOrder) {
       const response = await axios.get(
         `${process.env.WC_API_URL}/orders/${orderId}`,
@@ -84,7 +77,6 @@ app.post('/webhook', async (req, res) => {
     const productNames = data.line_items?.map(item => item.name).join(', ') || "No products";
     const paymentMethod = data.payment_method_title || "N/A";
 
-    // Minecraft Username
     let minecraftUsername = null;
     if (Array.isArray(data.meta_data)) {
       const mcMeta = data.meta_data.find(meta =>
@@ -94,7 +86,6 @@ app.post('/webhook', async (req, res) => {
         minecraftUsername = mcMeta.value;
       }
     }
-
     if (!minecraftUsername) {
       minecraftUsername = data.billing.first_name || "Unknown";
     }
@@ -125,11 +116,7 @@ app.post('/webhook', async (req, res) => {
         .setStyle(ButtonStyle.Danger)
     );
 
-    await channel.send({
-      embeds: [embed],
-      components: [row]
-    });
-
+    await channel.send({ embeds: [embed], components: [row] });
     console.log("✅ Order sent to Discord:", orderId);
     res.status(200).send("Order processed");
 
@@ -139,9 +126,6 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
-
-
-// ✅ Root & Health Endpoints
 app.get("/", (req, res) => {
   res.status(200).send("✅ Webhook server is up and running.");
 });
@@ -154,7 +138,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-// ✅ Test Webhook Endpoint
 app.post("/test-webhook", async (req, res) => {
   try {
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
@@ -171,42 +154,40 @@ app.post("/test-webhook", async (req, res) => {
   }
 });
 
-// ✅ Handle Button Interaction & Remove Buttons After Click
 bot.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
   const [action, orderId, email] = interaction.customId.split("_");
-  await interaction.deferReply({ ephemeral: true });
-
-  const message = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "Your Order Status",
-    text:
-      action === "accept"
-        ? `🎉 Congratulations!\n\nYour order has been accepted.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`
-        : `❌ Order Declined\n\nContact support if needed.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`,
-  };
 
   try {
+    const message = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Your Order Status",
+      text:
+        action === "accept"
+          ? `🎉 Congratulations!\n\nYour order has been accepted.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`
+          : `❌ Order Declined\n\nContact support if needed.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`,
+    };
+
     await transporter.sendMail(message);
-    await interaction.editReply({ content: `📩 Email sent to ${email}` });
+    await interaction.reply({ content: `📩 Email sent to ${email}`, ephemeral: true });
+    await interaction.message.edit({ components: [] });
     console.log(`📧 Email sent to ${email} for ${action}`);
 
-    // 🧼 Remove Buttons after interaction
-    await interaction.message.edit({ components: [] });
-
   } catch (error) {
-    console.error("❌ Failed to send email:", error);
-    await interaction.editReply({ content: "⚠️ Failed to send email." });
+    if (error.code === 10062) {
+      await interaction.reply({ content: "⏱️ This button has expired. Please contact support.", ephemeral: true });
+    } else {
+      console.error("❌ Failed to handle interaction:", error);
+      await interaction.reply({ content: "⚠️ Failed to process your request.", ephemeral: true });
+    }
   }
 });
 
-// ✅ Start Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Express server running at http://localhost:${PORT}`);
 });
 
-// ✅ Login Discord Bot
 bot.login(process.env.DISCORD_BOT_TOKEN);
