@@ -14,7 +14,7 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Check for required environment variables
+// Validate required environment variables
 const requiredEnvVars = [
   "DISCORD_BOT_TOKEN",
   "DISCORD_CHANNEL_ID",
@@ -36,7 +36,7 @@ bot.once(Events.ClientReady, () => {
   console.log(`✅ Logged in as ${bot.user.tag}`);
 });
 
-// Nodemailer setup
+// Email transport config
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
@@ -47,16 +47,9 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Webhook endpoint
+// Handle WooCommerce webhook
 app.post("/webhook", async (req, res) => {
   try {
-    // Optional webhook secret check
-    const secret = process.env.WEBHOOK_SECRET;
-    if (secret && req.headers["x-webhook-secret"] !== secret) {
-      console.error("❌ Invalid webhook secret");
-      return res.status(403).send("Forbidden");
-    }
-
     console.log("📥 Webhook Received:");
     console.log(JSON.stringify(req.body, null, 2));
 
@@ -85,13 +78,12 @@ app.post("/webhook", async (req, res) => {
       return res.status(400).send("Customer email is required.");
     }
 
+    // Try to extract Minecraft username
     let mcUsername = order.billing?.minecraft_username || order.minecraft_username;
-
     if (!mcUsername && Array.isArray(order.meta_data)) {
       const metaField = order.meta_data.find(meta => meta.key === "_billing_minecraft_username");
       mcUsername = metaField ? metaField.value : null;
     }
-
     if (!mcUsername && order.custom_fields) {
       mcUsername = order.custom_fields.minecraft_username ||
                    order.custom_fields.mc_username ||
@@ -138,7 +130,7 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-// Health check endpoint
+// Health check
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "healthy",
@@ -147,7 +139,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Manual test endpoint
+// Test webhook manually
 app.post("/test-webhook", async (req, res) => {
   try {
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
@@ -166,7 +158,7 @@ app.post("/test-webhook", async (req, res) => {
   }
 });
 
-// Button handler
+// Handle button clicks
 bot.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
@@ -184,12 +176,7 @@ bot.on(Events.InteractionCreate, async (interaction) => {
   };
 
   try {
-    const emailPromise = transporter.sendMail(message);
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Timeout while sending email")), 10000)
-    );
-    await Promise.race([emailPromise, timeoutPromise]);
-
+    await transporter.sendMail(message);
     await interaction.editReply({ content: `📩 Email sent to ${email}` });
     console.log(`📧 Email sent to ${email} for ${action}`);
   } catch (error) {
@@ -198,7 +185,7 @@ bot.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-// Start the server
+// Start Express server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
