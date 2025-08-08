@@ -49,73 +49,84 @@ const transporter = nodemailer.createTransport({
 });
 
 // Webhook handler
+const axios = require("axios");
+
 app.post('/webhook', async (req, res) => {
-  const data = req.body;
+  const orderId = req.body.id;
 
-  if (!data || !data.id || !data.billing || !data.line_items) {
-    console.log("❌ Invalid order format received:", data);
-    return res.status(400).send("Invalid order format");
+  if (!orderId) {
+    console.log("❌ Invalid webhook payload:", req.body);
+    return res.status(400).send("Missing order ID");
   }
-
-  const orderId = data.id;
-  const customerEmail = data.billing.email;
-  const orderTotal = data.total;
-  const orderStatus = data.status;
-  const productNames = data.line_items.map(item => item.name).join(', ');
-
-  // 🔍 Try to find Minecraft username in meta_data
-  let minecraftUsername = null;
-  if (Array.isArray(data.meta_data)) {
-    const mcMeta = data.meta_data.find(meta => 
-      meta.key.toLowerCase().includes('minecraft')
-    );
-    if (mcMeta) {
-      minecraftUsername = mcMeta.value;
-    }
-  }
-
-  // Fallback: use first name if no meta field found
-  if (!minecraftUsername) {
-    minecraftUsername = data.billing.first_name || "Unknown";
-  }
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`accept_${customerEmail}`)
-      .setLabel('Accept')
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(`decline_${customerEmail}`)
-      .setLabel('Decline')
-      .setStyle(ButtonStyle.Danger)
-  );
 
   try {
-    const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
-    if (!channel) {
-      console.error("❌ Discord channel not found");
-      return res.status(500).send("Discord channel not found");
+    const response = await axios.get(
+      `${process.env.WC_API_URL}/orders/${orderId}`,
+      {
+        auth: {
+          username: process.env.WC_CONSUMER_KEY,
+          password: process.env.WC_CONSUMER_SECRET
+        }
+      }
+    );
+
+    const data = response.data;
+
+    // 🧠 Now use your existing logic here with `data`
+    // For example:
+    const customerEmail = data.billing.email;
+    const orderTotal = data.total;
+    const orderStatus = data.status;
+    const productNames = data.line_items.map(item => item.name).join(', ');
+
+    let minecraftUsername = null;
+    if (Array.isArray(data.meta_data)) {
+      const mcMeta = data.meta_data.find(meta => 
+        meta.key.toLowerCase().includes('minecraft')
+      );
+      if (mcMeta) {
+        minecraftUsername = mcMeta.value;
+      }
     }
+
+    if (!minecraftUsername) {
+      minecraftUsername = data.billing.first_name || "Unknown";
+    }
+
+    const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`accept_${customerEmail}`)
+        .setLabel('Accept')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`decline_${customerEmail}`)
+        .setLabel('Decline')
+        .setStyle(ButtonStyle.Danger)
+    );
 
     await channel.send({
       content: `🛒 **New Order Received!**\n` +
                `📧 **Email:** ${customerEmail}\n` +
                `👤 **Minecraft Username:** \`${minecraftUsername}\`\n` +
                `📦 **Product(s):** ${productNames}\n` +
-               `🏢 **Order ID:** ${orderId}\n` +
+               `🆔 **Order ID:** ${orderId}\n` +
                `📊 **Status:** ${orderStatus}\n` +
                `💰 **Total:** $${orderTotal}\n` +
                `⏰ **Time:** ${new Date().toLocaleString()}`,
       components: [row],
     });
 
-    console.log(`📦 Webhook handled for ${customerEmail}`);
-    res.status(200).send("Webhook received");
+    console.log("✅ Order processed and sent to Discord");
+    res.status(200).send("Order fetched and processed");
+
   } catch (err) {
-    console.error("❌ Error sending to Discord:", err);
-    res.status(500).send("Internal error");
+    console.error("❌ Failed to fetch order from WooCommerce:", err.response?.data || err.message);
+    res.status(500).send("Error fetching order");
   }
 });
+
 
 // Render ping-friendly root route
 app.get("/", (req, res) => {
