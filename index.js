@@ -214,6 +214,7 @@ bot.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+
 // Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
