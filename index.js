@@ -32,8 +32,9 @@ requiredEnvVars.forEach((key) => {
 
 // Initialize Discord bot
 const bot = new Client({ intents: [GatewayIntentBits.Guilds] });
+
 bot.once(Events.ClientReady, () => {
-  console.log(`✅ Logged in as ${bot.user.tag}`);
+  console.log(`✅ Bot connected as ${bot.user.tag}`);
 });
 
 // Email transport config
@@ -47,7 +48,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Handle WooCommerce webhook
+// Webhook handler
 app.post("/webhook", async (req, res) => {
   try {
     console.log("📥 Webhook Received:");
@@ -78,7 +79,7 @@ app.post("/webhook", async (req, res) => {
       return res.status(400).send("Customer email is required.");
     }
 
-    // Try to extract Minecraft username
+    // Extract Minecraft username
     let mcUsername = order.billing?.minecraft_username || order.minecraft_username;
     if (!mcUsername && Array.isArray(order.meta_data)) {
       const metaField = order.meta_data.find(meta => meta.key === "_billing_minecraft_username");
@@ -130,6 +131,11 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
+// Render ping-friendly root route
+app.get("/", (req, res) => {
+  res.status(200).send("✅ Webhook server is up and running.");
+});
+
 // Health check
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -139,7 +145,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Test webhook manually
+// Manual webhook test
 app.post("/test-webhook", async (req, res) => {
   try {
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
@@ -158,7 +164,7 @@ app.post("/test-webhook", async (req, res) => {
   }
 });
 
-// Handle button clicks
+// Button interaction
 bot.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
@@ -185,10 +191,11 @@ bot.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-// Start Express server
+// Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Express server running at http://localhost:${PORT}`);
 });
-bot.login(process.env.DISCORD_BOT_TOKEN);
 
+// Login the bot
+bot.login(process.env.DISCORD_BOT_TOKEN);
