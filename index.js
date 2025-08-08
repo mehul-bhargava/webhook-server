@@ -14,6 +14,7 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Check for required environment variables
 const requiredEnvVars = [
   "DISCORD_BOT_TOKEN",
   "DISCORD_CHANNEL_ID",
@@ -29,12 +30,13 @@ requiredEnvVars.forEach((key) => {
   }
 });
 
+// Initialize Discord bot
 const bot = new Client({ intents: [GatewayIntentBits.Guilds] });
-
 bot.once(Events.ClientReady, () => {
   console.log(`✅ Logged in as ${bot.user.tag}`);
 });
 
+// Nodemailer setup
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
@@ -45,8 +47,16 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Webhook endpoint
 app.post("/webhook", async (req, res) => {
   try {
+    // Optional webhook secret check
+    const secret = process.env.WEBHOOK_SECRET;
+    if (secret && req.headers["x-webhook-secret"] !== secret) {
+      console.error("❌ Invalid webhook secret");
+      return res.status(403).send("Forbidden");
+    }
+
     console.log("📥 Webhook Received:");
     console.log(JSON.stringify(req.body, null, 2));
 
@@ -83,7 +93,7 @@ app.post("/webhook", async (req, res) => {
     }
 
     if (!mcUsername && order.custom_fields) {
-      mcUsername = order.custom_fields.minecraft_username || 
+      mcUsername = order.custom_fields.minecraft_username ||
                    order.custom_fields.mc_username ||
                    order.custom_fields.username;
     }
@@ -91,8 +101,8 @@ app.post("/webhook", async (req, res) => {
     const mcText = mcUsername ? `🎮 **Minecraft Username:** ${mcUsername}\n` : "";
 
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
-    if (!channel) {
-      console.error("❌ Discord channel not found");
+    if (!channel || !channel.isTextBased?.()) {
+      console.error("❌ Discord channel not found or not text-based");
       return res.status(500).send("Discord channel not found");
     }
 
@@ -128,6 +138,7 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
+// Health check endpoint
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "healthy",
@@ -136,6 +147,7 @@ app.get("/health", (req, res) => {
   });
 });
 
+// Manual test endpoint
 app.post("/test-webhook", async (req, res) => {
   try {
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
@@ -154,6 +166,7 @@ app.post("/test-webhook", async (req, res) => {
   }
 });
 
+// Button handler
 bot.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
@@ -171,7 +184,12 @@ bot.on(Events.InteractionCreate, async (interaction) => {
   };
 
   try {
-    await transporter.sendMail(message);
+    const emailPromise = transporter.sendMail(message);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Timeout while sending email")), 10000)
+    );
+    await Promise.race([emailPromise, timeoutPromise]);
+
     await interaction.editReply({ content: `📩 Email sent to ${email}` });
     console.log(`📧 Email sent to ${email} for ${action}`);
   } catch (error) {
@@ -180,6 +198,7 @@ bot.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+// Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
