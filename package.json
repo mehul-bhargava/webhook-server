@@ -1,19 +1,21 @@
 {
   "name": "minecraft-order-handler",
   "version": "1.0.0",
-  "description": "Discord bot + webhook + email for handling Minecraft orders",
+  "description": "Discord bot + webhook + email integration for handling Minecraft orders via WooCommerce",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon index.js"
   },
   "keywords": [
     "minecraft",
     "discord-bot",
     "webhook",
     "email",
-    "woocommerce"
+    "woocommerce",
+    "express",
+    "nodemailer"
   ],
   "author": "Mehul Bhargava",
   "license": "MIT",
@@ -27,5 +29,11 @@
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "nodemailer": "^7.0.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
