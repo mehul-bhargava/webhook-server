@@ -172,7 +172,7 @@ app.post("/test-webhook", async (req, res) => {
 bot.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
-  const [action, orderId, email] = interaction.customId.split("_");
+  const [action, email] = interaction.customId.split("_");
   await interaction.deferReply({ ephemeral: true });
 
   const message = {
@@ -181,37 +181,24 @@ bot.on(Events.InteractionCreate, async (interaction) => {
     subject: "Your Order Status",
     text:
       action === "accept"
-        ? `🎉 Congratulations!\n\nYour order (ID: ${orderId}) has been accepted.\n\nJoin our Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`
-        : `❌ Order Declined\n\nUnfortunately, your order (ID: ${orderId}) has been declined.\nIf this is a mistake, please contact support.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`
+        ? `🎉 Congratulations!\n\nYour order has been accepted.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`
+        : `❌ Order Declined\n\nContact support if needed.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`,
   };
 
   try {
     await transporter.sendMail(message);
+    await interaction.editReply({ content: `📩 Email sent to ${email}` });
+    console.log(`📧 Email sent to ${email} for ${action}`);
 
-    const oldMessage = interaction.message;
-    const disabledRow = new ActionRowBuilder().addComponents(
-      oldMessage.components[0].components.map(button =>
-        ButtonBuilder.from(button).setDisabled(true)
-      )
-    );
-
-    await oldMessage.edit({
-      components: [disabledRow]
-    });
-
-    await interaction.editReply({
-      content: `📩 Email sent to \`${email}\` and buttons disabled.`
-    });
-
-    console.log(`📧 Email sent to ${email} for ${action} (Order ID: ${orderId})`);
+    // 🧼 Remove the buttons from the original message
+    await interaction.message.edit({ components: [] });
 
   } catch (error) {
-    console.error("❌ Failed to send email or update message:", error);
-    await interaction.editReply({
-      content: "⚠️ Failed to process order or update Discord message."
-    });
+    console.error("❌ Failed to send email:", error);
+    await interaction.editReply({ content: "⚠️ Failed to send email." });
   }
 });
+
 
 // Start the server
 const PORT = process.env.PORT || 3000;
