@@ -15,8 +15,12 @@
     "email",
     "woocommerce"
   ],
-  "author": "Your Name",
-  "license": "ISC",
+  "author": "Mehul Bhargava",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mehul-bhargava/webhook-server.git"
+  },
   "dependencies": {
     "body-parser": "^2.2.0",
     "discord.js": "^14.21.0",
