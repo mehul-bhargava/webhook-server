@@ -14,6 +14,7 @@ const axios = require("axios");
 
 const app = express();
 app.use(bodyParser.json());
+app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // ✅ Environment Variable Validation
@@ -54,7 +55,7 @@ const transporter = nodemailer.createTransport({
 app.post('/webhook', async (req, res) => {
   let data = req.body;
 
-  // ✅ Log full payload for debugging
+  // ✅ Log entire webhook payload
   console.log("🛬 Received WooCommerce Webhook:\n", JSON.stringify(data, null, 2));
 
   const orderId = data.id;
@@ -64,11 +65,11 @@ app.post('/webhook', async (req, res) => {
 
   if (!orderId) {
     console.warn("⚠️ Webhook received without order ID. Payload might be malformed.");
-    return res.status(200).send("Received but missing order ID"); // Avoids webhook retries
+    return res.status(200).send("Received but missing order ID"); // Avoid retry
   }
 
   try {
-    // 🧠 If not test, fetch order details from WooCommerce API
+    // 🧠 If not test order, fetch order from WooCommerce
     if (!isTestOrder) {
       const response = await axios.get(
         `${process.env.WC_API_URL}/orders/${orderId}`,
@@ -82,13 +83,14 @@ app.post('/webhook', async (req, res) => {
       data = response.data;
     }
 
+    // 🔎 Extract order details
     const customerEmail = data.billing?.email || "no-email@example.com";
     const orderTotal = data.total || "0.00";
     const orderStatus = (data.status || "unknown").toUpperCase();
     const productNames = data.line_items?.map(item => item.name).join(', ') || "No products";
     const paymentMethod = data.payment_method_title || "N/A";
 
-    // 🧍 Get Minecraft Username from meta_data or fallback
+    // 🎮 Extract Minecraft username from meta or fallback to first name
     let minecraftUsername = null;
     if (Array.isArray(data.meta_data)) {
       const mcMeta = data.meta_data.find(meta =>
@@ -103,11 +105,13 @@ app.post('/webhook', async (req, res) => {
       minecraftUsername = data.billing?.first_name || "Unknown";
     }
 
+    // 📡 Fetch Discord channel
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
 
+    // 🛠️ Construct embed
     const embed = new EmbedBuilder()
       .setColor(0xff4b4b)
-      .setTitle("🛍️ Order Updated")
+      .setTitle("🛍️ Order Received")
       .addFields(
         { name: "Order ID", value: `\`${orderId}\``, inline: true },
         { name: "Minecraft Username", value: `\`${minecraftUsername}\``, inline: true },
@@ -118,13 +122,16 @@ app.post('/webhook', async (req, res) => {
       )
       .setFooter({ text: `Order Management System • ${new Date().toLocaleString()}` });
 
+    // ⏳ Add buttons with 24-hour expiration metadata
+    const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`accept_${orderId}_${customerEmail}`)
+        .setCustomId(`accept_${orderId}_${customerEmail}_${expiresAt}`)
         .setLabel("✅ Accept")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId(`decline_${orderId}_${customerEmail}`)
+        .setCustomId(`decline_${orderId}_${customerEmail}_${expiresAt}`)
         .setLabel("❌ Decline")
         .setStyle(ButtonStyle.Danger)
     );
@@ -136,13 +143,11 @@ app.post('/webhook', async (req, res) => {
 
     console.log("✅ Order sent to Discord:", orderId);
     res.status(200).send("Order processed");
-
   } catch (error) {
     console.error("❌ Failed to process order:", error.response?.data || error.message);
     res.status(500).send("Error processing order");
   }
 });
-
 
 // ✅ Root & Health Endpoints
 app.get("/", (req, res) => {
