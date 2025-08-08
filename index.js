@@ -59,16 +59,27 @@ app.post('/webhook', async (req, res) => {
     const orderId = req.body.id;
 
     try {
-      const response = await axios.get(
-        `${process.env.WC_API_URL}/orders/${orderId}`,
-        {
-          auth: {
-            username: process.env.WC_CONSUMER_KEY,
-            password: process.env.WC_CONSUMER_SECRET
-          }
-        }
-      );
-      data = response.data;
+      let data;
+
+if (req.body.line_items && req.body.billing) {
+  // Mock/test data directly from Postman
+  data = req.body;
+  console.log("🧪 Using mock order data from Postman");
+} else {
+  // Real order - fetch from WooCommerce
+  const response = await axios.get(
+    `${process.env.WC_API_URL}/orders/${orderId}`,
+    {
+      auth: {
+        username: process.env.WC_CONSUMER_KEY,
+        password: process.env.WC_CONSUMER_SECRET
+      }
+    }
+  );
+  data = response.data;
+  console.log("✅ Fetched real order from WooCommerce");
+}
+
     } catch (error) {
       console.error("❌ Failed to fetch from WooCommerce:", error.response?.data || error.message);
       return res.status(500).send("Error fetching order from WooCommerce");
