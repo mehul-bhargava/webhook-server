@@ -53,16 +53,22 @@ const transporter = nodemailer.createTransport({
 // ✅ Webhook Endpoint
 app.post('/webhook', async (req, res) => {
   let data = req.body;
+
+  // ✅ Log full payload for debugging
+  console.log("🛬 Received WooCommerce Webhook:\n", JSON.stringify(data, null, 2));
+
   const orderId = data.id;
 
+  // 🧪 Check if this is a test/mock order
   const isTestOrder = data.billing && data.line_items;
 
   if (!orderId) {
-    console.log("❌ Invalid webhook payload:", req.body);
-    return res.status(400).send("Missing order ID");
+    console.warn("⚠️ Webhook received without order ID. Payload might be malformed.");
+    return res.status(200).send("Received but missing order ID"); // Avoids webhook retries
   }
 
   try {
+    // 🧠 If not test, fetch order details from WooCommerce API
     if (!isTestOrder) {
       const response = await axios.get(
         `${process.env.WC_API_URL}/orders/${orderId}`,
@@ -76,16 +82,17 @@ app.post('/webhook', async (req, res) => {
       data = response.data;
     }
 
-    const customerEmail = data.billing.email || "no-email@example.com";
+    const customerEmail = data.billing?.email || "no-email@example.com";
     const orderTotal = data.total || "0.00";
     const orderStatus = (data.status || "unknown").toUpperCase();
     const productNames = data.line_items?.map(item => item.name).join(', ') || "No products";
     const paymentMethod = data.payment_method_title || "N/A";
 
+    // 🧍 Get Minecraft Username from meta_data or fallback
     let minecraftUsername = null;
     if (Array.isArray(data.meta_data)) {
       const mcMeta = data.meta_data.find(meta =>
-        meta.key.toLowerCase().includes('minecraft')
+        meta.key?.toLowerCase().includes('minecraft')
       );
       if (mcMeta) {
         minecraftUsername = mcMeta.value;
@@ -93,7 +100,7 @@ app.post('/webhook', async (req, res) => {
     }
 
     if (!minecraftUsername) {
-      minecraftUsername = data.billing.first_name || "Unknown";
+      minecraftUsername = data.billing?.first_name || "Unknown";
     }
 
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
@@ -135,6 +142,7 @@ app.post('/webhook', async (req, res) => {
     res.status(500).send("Error processing order");
   }
 });
+
 
 // ✅ Root & Health Endpoints
 app.get("/", (req, res) => {
