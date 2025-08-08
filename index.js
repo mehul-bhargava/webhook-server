@@ -50,6 +50,7 @@ const transporter = nodemailer.createTransport({
 
 // Webhook handler
 const axios = require("axios");
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
 
 app.post('/webhook', async (req, res) => {
   const orderId = req.body.id;
@@ -72,16 +73,15 @@ app.post('/webhook', async (req, res) => {
 
     const data = response.data;
 
-    // 🧠 Now use your existing logic here with `data`
-    // For example:
     const customerEmail = data.billing.email;
     const orderTotal = data.total;
-    const orderStatus = data.status;
+    const orderStatus = data.status.toUpperCase();
     const productNames = data.line_items.map(item => item.name).join(', ');
+    const paymentMethod = data.payment_method_title || "N/A";
 
     let minecraftUsername = null;
     if (Array.isArray(data.meta_data)) {
-      const mcMeta = data.meta_data.find(meta => 
+      const mcMeta = data.meta_data.find(meta =>
         meta.key.toLowerCase().includes('minecraft')
       );
       if (mcMeta) {
@@ -95,38 +95,46 @@ app.post('/webhook', async (req, res) => {
 
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
 
+    // Create the embed
+    const embed = new EmbedBuilder()
+      .setColor(0xff4b4b)
+      .setTitle("🛍️ Order Updated")
+      .addFields(
+        { name: "Order ID", value: `\`${orderId}\``, inline: true },
+        { name: "Minecraft Username", value: `\`${minecraftUsername}\``, inline: true },
+        { name: "Amount", value: `\`$${orderTotal}\``, inline: true },
+        { name: "Products", value: `${productNames}`, inline: false },
+        { name: "Status", value: `\`${orderStatus}\``, inline: true },
+        { name: "Payment Method", value: `${paymentMethod}`, inline: true }
+      )
+      .setFooter({ text: `Order Management System • ${new Date().toLocaleString()}` });
+
+    // Create the buttons
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`accept_${customerEmail}`)
-        .setLabel('Accept')
+        .setCustomId(`accept_${orderId}_${customerEmail}`)
+        .setLabel("✅ Accept")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId(`decline_${customerEmail}`)
-        .setLabel('Decline')
+        .setCustomId(`decline_${orderId}_${customerEmail}`)
+        .setLabel("❌ Decline")
         .setStyle(ButtonStyle.Danger)
     );
 
+    // Send message to Discord
     await channel.send({
-      content: `🛒 **New Order Received!**\n` +
-               `📧 **Email:** ${customerEmail}\n` +
-               `👤 **Minecraft Username:** \`${minecraftUsername}\`\n` +
-               `📦 **Product(s):** ${productNames}\n` +
-               `🆔 **Order ID:** ${orderId}\n` +
-               `📊 **Status:** ${orderStatus}\n` +
-               `💰 **Total:** $${orderTotal}\n` +
-               `⏰ **Time:** ${new Date().toLocaleString()}`,
-      components: [row],
+      embeds: [embed],
+      components: [row]
     });
 
-    console.log("✅ Order processed and sent to Discord");
-    res.status(200).send("Order fetched and processed");
+    console.log("✅ Order sent to Discord:", orderId);
+    res.status(200).send("Order processed");
 
-  } catch (err) {
-    console.error("❌ Failed to fetch order from WooCommerce:", err.response?.data || err.message);
-    res.status(500).send("Error fetching order");
+  } catch (error) {
+    console.error("❌ Failed to fetch or send order:", error.response?.data || error.message);
+    res.status(500).send("Error processing order");
   }
 });
-
 
 // Render ping-friendly root route
 app.get("/", (req, res) => {
@@ -165,7 +173,7 @@ app.post("/test-webhook", async (req, res) => {
 bot.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
-  const [action, email] = interaction.customId.split("_");
+  const [action, orderId, email] = interaction.customId.split("_");
   await interaction.deferReply({ ephemeral: true });
 
   const message = {
@@ -174,19 +182,42 @@ bot.on(Events.InteractionCreate, async (interaction) => {
     subject: "Your Order Status",
     text:
       action === "accept"
-        ? `🎉 Congratulations!\n\nYour order has been accepted.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`
-        : `❌ Order Declined\n\nContact support if needed.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`,
+        ? `🎉 Congratulations!\n\nYour order (ID: ${orderId}) has been accepted.\n\nJoin our Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`
+        : `❌ Order Declined\n\nUnfortunately, your order (ID: ${orderId}) has been declined.\nIf this is a mistake, please contact support.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`
   };
 
   try {
+    // Send the email
     await transporter.sendMail(message);
-    await interaction.editReply({ content: `📩 Email sent to ${email}` });
-    console.log(`📧 Email sent to ${email} for ${action}`);
+
+    // Disable the buttons
+    const oldMessage = interaction.message;
+    const disabledRow = new ActionRowBuilder().addComponents(
+      oldMessage.components[0].components.map(button =>
+        ButtonBuilder.from(button).setDisabled(true)
+      )
+    );
+
+    // Edit the original message with disabled buttons
+    await oldMessage.edit({
+      components: [disabledRow]
+    });
+
+    // Respond to the button click
+    await interaction.editReply({
+      content: `📩 Email sent to \`${email}\` and buttons disabled.`
+    });
+
+    console.log(`📧 Email sent to ${email} for ${action} (Order ID: ${orderId})`);
+
   } catch (error) {
-    console.error("❌ Failed to send email:", error);
-    await interaction.editReply({ content: "⚠️ Failed to send email." });
+    console.error("❌ Failed to send email or update message:", error);
+    await interaction.editReply({
+      content: "⚠️ Failed to process order or update Discord message."
+    });
   }
 });
+
 
 // Start the server
 const PORT = process.env.PORT || 3000;
