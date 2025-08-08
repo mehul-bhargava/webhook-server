@@ -7,8 +7,10 @@ const {
   ButtonBuilder,
   ButtonStyle,
   Events,
+  EmbedBuilder, // ✅ Added here
 } = require("discord.js");
 const nodemailer = require("nodemailer");
+const axios = require("axios");
 
 const app = express();
 app.use(bodyParser.json());
@@ -49,9 +51,6 @@ const transporter = nodemailer.createTransport({
 });
 
 // Webhook handler
-const axios = require("axios");
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require("discord.js");
-
 app.post('/webhook', async (req, res) => {
   const orderId = req.body.id;
 
@@ -213,7 +212,6 @@ bot.on(Events.InteractionCreate, async (interaction) => {
     });
   }
 });
-
 
 // Start the server
 const PORT = process.env.PORT || 3000;
