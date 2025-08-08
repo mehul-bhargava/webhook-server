@@ -16,6 +16,7 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// ✅ Environment Variable Validation
 const requiredEnvVars = [
   "DISCORD_BOT_TOKEN",
   "DISCORD_CHANNEL_ID",
@@ -31,25 +32,29 @@ requiredEnvVars.forEach((key) => {
   }
 });
 
+// ✅ Discord Bot Init
 const bot = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 bot.once(Events.ClientReady, () => {
   console.log(`✅ Bot connected as ${bot.user.tag}`);
 });
 
+// ✅ Email Transporter
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
-  secure: false,
+  secure: false, // 🔁 Set to true if using port 465
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
 });
 
+// ✅ Webhook Endpoint
 app.post('/webhook', async (req, res) => {
   let data = req.body;
   const orderId = data.id;
+
   const isTestOrder = data.billing && data.line_items;
 
   if (!orderId) {
@@ -86,6 +91,7 @@ app.post('/webhook', async (req, res) => {
         minecraftUsername = mcMeta.value;
       }
     }
+
     if (!minecraftUsername) {
       minecraftUsername = data.billing.first_name || "Unknown";
     }
@@ -116,7 +122,11 @@ app.post('/webhook', async (req, res) => {
         .setStyle(ButtonStyle.Danger)
     );
 
-    await channel.send({ embeds: [embed], components: [row] });
+    await channel.send({
+      embeds: [embed],
+      components: [row]
+    });
+
     console.log("✅ Order sent to Discord:", orderId);
     res.status(200).send("Order processed");
 
@@ -126,6 +136,7 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
+// ✅ Root & Health Endpoints
 app.get("/", (req, res) => {
   res.status(200).send("✅ Webhook server is up and running.");
 });
@@ -138,6 +149,7 @@ app.get("/health", (req, res) => {
   });
 });
 
+// ✅ Test Webhook
 app.post("/test-webhook", async (req, res) => {
   try {
     const channel = await bot.channels.fetch(process.env.DISCORD_CHANNEL_ID);
@@ -154,40 +166,55 @@ app.post("/test-webhook", async (req, res) => {
   }
 });
 
+// ✅ Test Email Route (to verify SMTP config)
+app.get("/send-test-email", async (req, res) => {
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: process.env.EMAIL_USER,
+      subject: "✅ Test Email from ArcMC Webhook",
+      text: "If you received this, your SMTP setup works!"
+    });
+    res.status(200).send("✅ Test email sent successfully");
+  } catch (error) {
+    console.error("❌ Email test failed:", error);
+    res.status(500).send("❌ Email test failed – check console logs");
+  }
+});
+
+// ✅ Handle Button Interactions
 bot.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
   const [action, orderId, email] = interaction.customId.split("_");
+  await interaction.deferReply({ ephemeral: true });
+
+  const message = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: "Your Order Status",
+    text:
+      action === "accept"
+        ? `🎉 Congratulations!\n\nYour order has been accepted.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`
+        : `❌ Order Declined\n\nContact support if needed.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`,
+  };
 
   try {
-    const message = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Your Order Status",
-      text:
-        action === "accept"
-          ? `🎉 Congratulations!\n\nYour order has been accepted.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`
-          : `❌ Order Declined\n\nContact support if needed.\n\nJoin Discord: https://discord.gg/eXPMuw52hV\n\n– The ArcMC Team`,
-    };
-
     await transporter.sendMail(message);
-    await interaction.reply({ content: `📩 Email sent to ${email}`, ephemeral: true });
-    await interaction.message.edit({ components: [] });
+    await interaction.editReply({ content: `📩 Email sent to ${email}` });
     console.log(`📧 Email sent to ${email} for ${action}`);
-
+    await interaction.message.edit({ components: [] });
   } catch (error) {
-    if (error.code === 10062) {
-      await interaction.reply({ content: "⏱️ This button has expired. Please contact support.", ephemeral: true });
-    } else {
-      console.error("❌ Failed to handle interaction:", error);
-      await interaction.reply({ content: "⚠️ Failed to process your request.", ephemeral: true });
-    }
+    console.error("❌ Failed to send email:", error);
+    await interaction.editReply({ content: "⚠️ Failed to send email. Check logs." });
   }
 });
 
+// ✅ Start Express Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Express server running at http://localhost:${PORT}`);
 });
 
+// ✅ Login Discord Bot
 bot.login(process.env.DISCORD_BOT_TOKEN);
